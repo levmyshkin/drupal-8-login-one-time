@@ -1,0 +1,36 @@
+login_one_time.settings:
+  type: mapping
+  label: Settings
+  mapping:
+    expiry:
+      type: integer
+    user_widget:
+      type: string
+    path_front:
+      type: boolean
+    path_user:
+      type: boolean
+    path_user_edit:
+      type: boolean
+    path_current:
+      type: boolean
+    path_custom:
+      type: string
+    path_default:
+      type: 'NULL'
+    user_view:
+      type: boolean
+    user_select:
+      type: boolean
+    user_set_mail:
+      type: boolean
+    user_ignore_current_pass:
+      type: boolean
+    block_default:
+      type: 'NULL'
+    block_select:
+      type: boolean
+    block_set_mail:
+      type: boolean
+    email_template:
+      type: mail

@@ -1,0 +1,18 @@
+expiry: 1209600
+user_widget: autocomplete
+path_front: true
+path_user: true
+path_user_edit: true
+path_current: true
+path_custom: ''
+path_default: null
+user_view: true
+user_select: false
+user_set_mail: false
+user_ignore_current_pass: false
+block_default: null
+block_select: false
+block_set_mail: false
+email_template:
+  subject: 'One-time login link for [user:name] at [site:name]'
+  body: "[user:name],\n\nA site administrator at [site:name] has created an account for you. You may now log in by clicking this link or copying and pasting it to your browser:\n\n[user:one-time-login-url]\n\nThis link can only be used once to log in and will lead you to a page where you can set your password.\n\nAfter setting your password, you will be able to log in at [site:login-url] in the future using:\n\n[user:login-one-time]\n\n--  [site:name] team"

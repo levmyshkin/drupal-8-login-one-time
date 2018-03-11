@@ -1,0 +1,6 @@
+name: 'Login one time'
+type: module
+description: 'Provides functionality for permitted users to send a one-time login link to other users.'
+core: 8.x
+package: Authentication
+project: login_one_time

@@ -1,0 +1,252 @@
+<?php
+
+/**
+ * @file
+ * The Login one time module.
+ */
+
+use Drupal\Core\Url;
+use Drupal\login_one_time\LoginOneTimeSendMail;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
+use Drupal\user\UserInterface;
+use Drupal\Core\Mail\MailFormatHelper;
+
+/**
+ * Implements hook_user_view_alter().
+ */
+function login_one_time_user_view_alter(&$build, UserInterface $account, EntityViewDisplayInterface $display) {
+  $config      = \Drupal::config('login_one_time.settings');
+  $current_url = Url::fromRoute('<current>');
+  $uri         = $current_url->getInternalPath();
+  // It will improve below.
+  if ($account->hasPermission('use link to login one time') && $account->hasPermission('send link to login one time') && $config->get('user_view') && preg_match('/user\/\d+/i', $uri)) {
+    $select                  = \Drupal::config('login_one_time.settings')
+      ->get('login_one_time_user_select');
+    $set_mail                = \Drupal::config('login_one_time.settings')
+      ->get('login_one_time_user_set_mail');
+    $item                    = login_one_time_button($account->getUsername(), NULL, $select, $set_mail);
+    $build['login_one_itme'] = array(
+      '#type' => 'item',
+      '#markup' => $item,
+      '#weight' => 10,
+    );
+  }
+}
+
+/**
+ * Implements hook_ds_pre_render_alter().
+ *
+ * Render One time login button to user profile page if DS layout is used.
+ */
+function login_one_time_ds_pre_render_alter(&$layout_render_array, $context, $vars) {
+  if (
+    $context['entity_type'] == 'user' &&
+    $context['bundle'] == 'user' &&
+    $context['view_mode'] == 'full' &&
+    isset($vars['elements']['login_one_time'])
+  ) {
+    $layout_render_array['ds_content'][] = $vars['elements']['login_one_time'];
+  }
+}
+
+/**
+ * Get a login one time form.
+ *
+ * @param string $username
+ *   If supplied force the email to go to this user, if not supplied will
+ *   display a select element with all active users. NOTE: It is assumed that
+ *   this user has permission to use login one time links, if they do not the
+ *   button will still appear but the mail will not be sent.
+ * @param string $path
+ *   If supplied will force the emailed link to redirect to this path. If not
+ *   supplied will use default setting, or fallback to the URL of the page this
+ *   code is called from.  Supply empty string to prompt for selection.
+ * @param bool $select
+ *   If TRUE will display a select element to choose from configured paths, the
+ *   default choice will come from $path or be calculated the same way, or if
+ *   empty string supplied it will prompt for selection.
+ * @param bool $set_mail
+ *   If TRUE shows textbox to override the recipient email address.
+ *
+ * @return NULL|string
+ *   The HTML string of the form, for use in output.
+ */
+function login_one_time_button($username = NULL, $path = NULL, $select = FALSE, $set_mail = FALSE) {
+  if (\Drupal::currentUser()->hasPermission('send link to login one time')) {
+    if (is_object($username) && isset($username->name)) {
+      // Woops, they've supplied an $account!
+      $username = $username->name;
+    }
+    $form_id = 'Drupal\login_one_time\Form\LoginOneTimeButtonFormUser';
+    $form    = \Drupal::formBuilder()
+      ->getForm($form_id, $username, $path, $select, $set_mail);
+    return \Drupal::service("renderer")->render($form);
+  }
+  return NULL;
+}
+
+/**
+ * Implements hook_mail().
+ */
+function login_one_time_mail($key, &$message, $params) {
+  if ($key == 'login_one_time_key') {
+    $account  = $params['account'];
+    $language = isset($message['langcode']) ? $message['langcode'] : '';
+    if (!$language) {
+      $language = $params['language'];
+    }
+    $path             = &$params['path'];
+    $login_send_service = new LoginOneTimeSendMail();
+    $variables        = $login_send_service->loginOneTimeMailTokens($account, $language, $path);
+
+    $subject = $login_send_service->loginOneTimeMailText('email_template.subject', $path, $language, $variables);
+    $body    = $login_send_service->loginOneTimeMailText('email_template.body', $path, $language, $variables);
+
+    $subject = \Drupal::token()->replace($subject, array('user' => $account));
+    $body    = \Drupal::token()->replace($body, array('user' => $account));
+
+    $message['subject'] .= $subject;
+    $message['body'][] = MailFormatHelper::htmlToText($body);
+  }
+}
+
+/**
+ * Implements hook_user_operations().
+ */
+function login_one_time_user_operations() {
+  $operations = array();
+  $options    = login_one_time_path_options();
+  foreach ($options as $path => $display) {
+    $operations['login_one_time_bulk_send_mail_' . $path] = array(
+      'label' => t('Send one-time login link to the selected users (!display)', array('!display' => $display)),
+      'callback' => 'login_one_time_bulk_send_mail',
+      'callback arguments' => array($path),
+    );
+  }
+  return $operations;
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function login_one_time_form_user_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  // Remove the current password field from user profile edit form
+  // and disable validation.
+  if (\Drupal::config('login_one_time.settings')
+      ->get('ignore_current_pass') && isset($_SESSION['ignore_current_pass']) && $_SESSION['ignore_current_pass']
+  ) {
+    $key = array_search('user_validate_current_pass', $form['#validate']);
+
+    if ($key !== FALSE) {
+      unset($form['#validate'][$key]);
+    }
+
+    $form['account']['current_pass']['#access'] = FALSE;
+  }
+}
+
+/**
+ * Implements hook_tokens().
+ */
+function login_one_time_tokens($type, $tokens, $data = array(), $options = array()) {
+  $send_mail_service = new LoginOneTimeSendMail();
+
+  $replacements = array();
+  if ($type == 'user' && !empty($data['user'])) {
+    $account = $data['user'];
+
+    foreach ($tokens as $name => $original) {
+      switch ($name) {
+        // Simple key values on the node.
+        case 'login-one-time':
+          $path                    = isset($data['path']) ? $data['path'] : NULL;
+          $replacements[$original] = $send_mail_service->loginOneTimeGetLink($account, $path);
+          break;
+      }
+    }
+  }
+  return $replacements;
+}
+
+/**
+ * Implements hook_token_info().
+ */
+function login_one_time_token_info() {
+  $info['tokens']['user']['login-one-time'] = array(
+    'name' => t('Login one time link'),
+    'description' => t("A one-time login link set to the configured default path."),
+  );
+  if (\Drupal::moduleHandler()->moduleExists('comment')) {
+    $info['tokens']['comment']['login-one-time'] = array(
+      'name' => t('Login one time link'),
+      'description' => t("A one-time login link for the commented node's author."),
+    );
+  }
+  return $info;
+}
+
+/**
+ * Set all user roles to have the permission to use login one time links.
+ *
+ * @return bool
+ *   TRUE if operation was performed, FALSE if it was not needed.
+ */
+function login_one_time_force_permissions() {
+  $permitted_role_ids = array_keys(user_roles(TRUE, 'use link to login one time'));
+  // Only do this if nobody has been given the permission yet.
+  if (empty($permitted_role_ids)) {
+    $role_ids = array_keys(user_roles(TRUE));
+    foreach ($role_ids as $rid) {
+      user_role_change_permissions($rid, array('use link to login one time' => TRUE));
+    }
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function login_one_time_form_user_admin_settings_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $email_token_help                                 = t('Available variables are: [site:name], [site:url], [user:display-name], [user:account-name], [user:mail], [site:login-url], [site:url-brief], [user:edit-url], [user:login-one-time], [user:cancel-url].');
+  $mail_config                                      = \Drupal::config('login_one_time.settings');
+  $form['login_one_time']                           = array(
+    '#type' => 'details',
+    '#title' => t('Login one time e-mail'),
+    '#group' => 'email',
+    '#description' => t('Customize login one time e-mail messages sent to users.') . ' ' . $email_token_help,
+    '#weight' => 99,
+  );
+  $form['login_one_time']['login_one_time_subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subject'),
+    '#default_value' => $mail_config->get('email_template.subject'),
+    '#maxlength' => 180,
+  );
+  $form['login_one_time']['login_one_time_body']    = array(
+    '#type' => 'textarea',
+    '#title' => t('Login one time Body'),
+    '#default_value' => $mail_config->get('email_template.body'),
+    '#rows' => 12,
+  );
+  $form['actions']['submit']['#submit'][]           = 'login_one_time_config_save';
+  return $form;
+
+}
+
+/**
+ * Save user email temaplate configuration values.
+ *
+ * @param array $form
+ *   Form.
+ * @param \Drupal\Core\Form\FormStateInterface $form_state
+ *   Form state.
+ */
+function login_one_time_config_save(&$form, FormStateInterface $form_state) {
+  $mail_config = \Drupal::configFactory()
+    ->getEditable('login_one_time.settings');
+  $mail_config->set('email_template.subject', $form_state->getValue('login_one_time_subject'));
+  $mail_config->set('email_template.body', $form_state->getValue('login_one_time_body'));
+  $mail_config->save();
+}
