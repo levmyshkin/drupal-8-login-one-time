@@ -1,3 +1,6 @@
+It's a Drupal 8 module created from Drupal 7 module by this patch:
+https://www.drupal.org/node/2693351
+https://www.drupal.org/project/login_one_time/issues/2693351#comment-11864062
 
 Login one time README
 
