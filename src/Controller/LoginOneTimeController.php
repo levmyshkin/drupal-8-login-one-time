@@ -81,7 +81,7 @@ class LoginOneTimeController extends ControllerBase {
           \Drupal::moduleHandler()->invokeAll('login_one_time_used', [$user]);
 
           // Add a session variable indicating whether the ignore current password field setting is enabled.
-          $_SESSION['ignore_current_pass'] = \Drupal::config('login_one_time.settings')->get('ignore_current_pass');
+          $_SESSION['user_ignore_current_pass'] = \Drupal::config('login_one_time.settings')->get('user_ignore_current_pass');
           drupal_set_message(t('You have just used your one-time login link.'));
           return new RedirectResponse($action);
         }
