@@ -63,7 +63,7 @@ class LoginOneTimeController extends ControllerBase {
 
           $action = $this->getActionPath();
 
-          \Drupal::logger('user')->notice('User %name used one-time login link at time %timestamp.', array('%name' => $account->name, '%timestamp' => $timestamp));
+          \Drupal::logger('user')->notice('User %name used one-time login link at time %timestamp.', array('%name' => $account->getUsername(), '%timestamp' => $timestamp));
           // Set the new user.
           $user = $account;
           // user_authenticate_finalize() also updates the login timestamp of the
@@ -110,3 +110,4 @@ class LoginOneTimeController extends ControllerBase {
   }
 
 }
+

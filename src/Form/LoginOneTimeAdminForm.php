@@ -66,8 +66,8 @@ class LoginOneTimeAdminForm extends ConfigFormBase {
       '#title' => t("E-mail settings"),
     );
     $form['mail']['login_one_time_mail_message'] = array(
-      '#markup' => t('Customize <em>login one time</em> e-mail messages sent to users at the <a href="!user_settings">User settings</a> page.', array(
-        '!user_settings' => Url::fromRoute('entity.user.admin_form')
+      '#markup' => t('Customize <em>login one time</em> e-mail messages sent to users at the <a href="@user_settings">User settings</a> page.', array(
+        '@user_settings' => Url::fromRoute('entity.user.admin_form')
           ->toString(),
       )),
     );
@@ -190,3 +190,4 @@ class LoginOneTimeAdminForm extends ConfigFormBase {
   }
 
 }
+
