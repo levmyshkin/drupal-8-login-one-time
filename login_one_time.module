@@ -20,12 +20,11 @@ function login_one_time_user_view_alter(&$build, UserInterface $account, EntityV
   $current_url = Url::fromRoute('<current>');
   $uri         = $current_url->getInternalPath();
   // It will improve below.
-  if ($account->hasPermission('use link to login one time') && $account->hasPermission('send link to login one time') && $config->get('user_view') && preg_match('/user\/\d+/i', $uri)) {
-    $select                  = \Drupal::config('login_one_time.settings')
-      ->get('login_one_time_user_select');
-    $set_mail                = \Drupal::config('login_one_time.settings')
-      ->get('login_one_time_user_set_mail');
-    $item                    = login_one_time_button($account->getUsername(), NULL, $select, $set_mail);
+  $user= \Drupal::currentUser();
+  if ($account->hasPermission('use link to login one time') && $user->hasPermission('send link to login one time') && $config->get('user_view') && preg_match('/user\/\d+/i', $uri)) {
+    $select = $config->get('user_select');
+    $set_mail = $config->get('user_set_mail');
+    $item = login_one_time_button($account->getUsername(), NULL, $select, $set_mail);
     $build['login_one_itme'] = array(
       '#type' => 'item',
       '#markup' => $item,
@@ -250,3 +249,4 @@ function login_one_time_config_save(&$form, FormStateInterface $form_state) {
   $mail_config->set('email_template.body', $form_state->getValue('login_one_time_body'));
   $mail_config->save();
 }
+
